@@ -185,8 +185,12 @@ export function WorkbenchApp({ defaultWorkspacePath }: { defaultWorkspacePath?: 
   }, []);
 
   const runTurn = useCallback(
-    async (userMessage: string, stageOverride?: StageId) => {
-      if (!workspaceState || isStreaming) return;
+    async (userMessage: string, stageOverride?: StageId, force = false) => {
+      if (!workspaceState || (isStreaming && !force)) return;
+      if (force && abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
       const stage = stageOverride ?? activeStage;
 
       const userTurn: TurnEntry = {
@@ -206,8 +210,21 @@ export function WorkbenchApp({ defaultWorkspacePath }: { defaultWorkspacePath?: 
       };
 
       const priorHistory: ConversationMessage[] = turnsByStage[stage]
-        .filter((t) => t.text.trim().length > 0)
-        .map((t) => ({ role: t.role, content: t.text }));
+        .map((t) => {
+          const text = t.text.trim();
+          if (text.length > 0) {
+            return { role: t.role, content: text };
+          }
+          if (t.role === "assistant" && t.questionGroup) {
+            const prompts = t.questionGroup.questions.map((q) => q.prompt).join("; ");
+            return {
+              role: "assistant" as const,
+              content: `Asked structured questions (${t.questionGroup.title ?? "Questions"}): ${prompts}`,
+            };
+          }
+          return null;
+        })
+        .filter((m): m is ConversationMessage => m !== null);
 
       const nextMessages: ConversationMessage[] = [
         ...priorHistory,
@@ -295,6 +312,10 @@ export function WorkbenchApp({ defaultWorkspacePath }: { defaultWorkspacePath?: 
               void refreshWorkspaceState(workspaceState.rootPath);
             } else if (evt.type === "error") {
               updateAssistant((entry) => ({ ...entry, error: evt.message }));
+            } else if (evt.type === "done") {
+              if (abortRef.current === controller) {
+                setIsStreaming(false);
+              }
             }
           }
         }
@@ -306,8 +327,10 @@ export function WorkbenchApp({ defaultWorkspacePath }: { defaultWorkspacePath?: 
           }));
         }
       } finally {
-        setIsStreaming(false);
-        abortRef.current = null;
+        if (abortRef.current === controller) {
+          setIsStreaming(false);
+          abortRef.current = null;
+        }
       }
     },
     [workspaceState, isStreaming, activeStage, turnsByStage, refreshWorkspaceState],
@@ -336,7 +359,7 @@ export function WorkbenchApp({ defaultWorkspacePath }: { defaultWorkspacePath?: 
       })
       .join("\n");
 
-    void runTurn(`Here are my answers:\n${formatted}`);
+    void runTurn(`Here are my answers:\n${formatted}`, undefined, true);
   };
 
   const handleComposerSubmit = (e: React.FormEvent) => {
@@ -452,7 +475,6 @@ export function WorkbenchApp({ defaultWorkspacePath }: { defaultWorkspacePath?: 
                             <QuestionGroupCard
                               payload={turn.questionGroup}
                               submittedAnswers={turn.submittedAnswers}
-                              disabled={isStreaming}
                               onSubmit={(answers) =>
                                 handleSubmitQuestionCard(turn.id, turn.questionGroup!, answers)
                               }

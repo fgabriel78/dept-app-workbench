@@ -6,32 +6,58 @@ import { parseEnv } from "@/lib/env";
 
 const SKIP_THOUGHT_SIGNATURE = "skip_thought_signature_validator";
 
-export function patchGeminiFunctionCallBody(body: string): string {
+export function getDefaultGeminiThinkingConfig(
+  modelId?: string,
+): Record<string, unknown> | undefined {
+  if (!modelId) return undefined;
+  const normalized = modelId.toLowerCase();
+  if (/^gemini-[34]/.test(normalized)) {
+    return { thinkingLevel: "low" };
+  }
+  if (/^gemini-2\.5/.test(normalized)) {
+    return { thinkingBudget: 1024 };
+  }
+  return undefined;
+}
+
+export function patchGeminiFunctionCallBody(body: string, modelId?: string): string {
   try {
     const payload = JSON.parse(body) as {
       contents?: Array<{
         parts?: Array<Record<string, unknown>>;
       }>;
+      generationConfig?: Record<string, unknown>;
     };
 
-    if (!Array.isArray(payload.contents)) {
-      return body;
+    let modified = false;
+
+    if (Array.isArray(payload.contents)) {
+      for (const content of payload.contents) {
+        if (!Array.isArray(content.parts)) continue;
+        for (const part of content.parts) {
+          if (
+            part &&
+            typeof part === "object" &&
+            "functionCall" in part &&
+            !("thoughtSignature" in part) &&
+            !("thought_signature" in part)
+          ) {
+            part.thoughtSignature = SKIP_THOUGHT_SIGNATURE;
+            modified = true;
+          }
+        }
+      }
     }
 
-    let modified = false;
-    for (const content of payload.contents) {
-      if (!Array.isArray(content.parts)) continue;
-      for (const part of content.parts) {
-        if (
-          part &&
-          typeof part === "object" &&
-          "functionCall" in part &&
-          !("thoughtSignature" in part) &&
-          !("thought_signature" in part)
-        ) {
-          part.thoughtSignature = SKIP_THOUGHT_SIGNATURE;
-          modified = true;
-        }
+    const thinkingConfig = getDefaultGeminiThinkingConfig(modelId);
+    if (thinkingConfig) {
+      const genConfig = payload.generationConfig ?? {};
+      if (!("thinkingConfig" in genConfig) && !("thinking_config" in genConfig)) {
+        payload.generationConfig = {
+          ...genConfig,
+          thinkingConfig,
+        };
+        modified = true;
       }
     }
 
@@ -42,13 +68,14 @@ export function patchGeminiFunctionCallBody(body: string): string {
 }
 
 export function createGoogleFetchWithThoughtSignatureFallback(
+  modelId?: string,
   baseFetch: typeof fetch = fetch,
 ): typeof fetch {
   return async (input, init) => {
     if (init && typeof init.body === "string") {
       return baseFetch(input, {
         ...init,
-        body: patchGeminiFunctionCallBody(init.body),
+        body: patchGeminiFunctionCallBody(init.body, modelId),
       });
     }
     return baseFetch(input, init);
@@ -70,7 +97,7 @@ export function createLanguageModel(): LanguageModelV1 {
 
   const google = createGoogleGenerativeAI({
     apiKey: env.apiKey,
-    fetch: createGoogleFetchWithThoughtSignatureFallback(),
+    fetch: createGoogleFetchWithThoughtSignatureFallback(env.model),
   });
   return google(env.model);
 }

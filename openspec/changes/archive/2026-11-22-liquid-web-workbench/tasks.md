@@ -26,4 +26,4 @@
 
 ## 5. End-to-End Verification
 
-- [ ] 5.1 Run `npx tsc --noEmit` and `npm run build` across `dept-app-workbench`, and manually verify a full `Brief` → `Explore` turn against a cloned `dept-app-brief` project folder.
+- [x] 5.1 Run `npx tsc --noEmit` and `npm run build` across `dept-app-workbench`, and manually verify a full `Brief` → `Explore` turn against a cloned `dept-app-brief` project folder.

@@ -74,4 +74,19 @@ describe("QuestionGroupCard", () => {
     expect(screen.getByText("No")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Submit Answers/i })).not.toBeInTheDocument();
   });
+
+  it("allows selecting options even while disabled (streaming) and gates only submission", async () => {
+    const user = userEvent.setup();
+    render(<QuestionGroupCard payload={samplePayload} disabled={true} onSubmit={vi.fn()} />);
+
+    const financeRadio = screen.getByRole("radio", { name: "Finance" });
+    await user.click(financeRadio);
+    expect(financeRadio).toHaveAttribute("aria-checked", "true");
+
+    const csvCheckbox = screen.getByRole("checkbox", { name: "CSV" });
+    await user.click(csvCheckbox);
+    expect(csvCheckbox).toHaveAttribute("aria-checked", "true");
+
+    expect(screen.getByRole("button", { name: /Submit Answers/i })).toBeDisabled();
+  });
 });

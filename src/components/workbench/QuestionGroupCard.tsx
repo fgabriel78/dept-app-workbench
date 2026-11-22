@@ -123,7 +123,6 @@ export function QuestionGroupCard({
                     placeholder={question.placeholder ?? "Type your answer..."}
                     value={typeof val === "string" ? val : ""}
                     onChange={(e) => setAnswer(question.id, e.target.value)}
-                    disabled={disabled}
                   />
                 )}
 
@@ -137,16 +136,28 @@ export function QuestionGroupCard({
                           type="button"
                           role="radio"
                           aria-checked={selected}
-                          disabled={disabled}
                           onClick={() => setAnswer(question.id, option)}
                           className={cn(
-                            "rounded-lg border px-3 py-2 text-left text-sm transition-all cursor-pointer",
+                            "flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm transition-all cursor-pointer",
                             selected
-                              ? "border-primary bg-primary/10 font-medium text-primary"
-                              : "border-border bg-background hover:bg-accent",
+                              ? "border-primary bg-primary/10 font-medium text-primary shadow-2xs"
+                              : "border-border bg-background hover:border-primary/40 hover:bg-accent",
                           )}
                         >
-                          {option}
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
+                              selected
+                                ? "border-primary bg-primary"
+                                : "border-muted-foreground/40 bg-background",
+                            )}
+                          >
+                            {selected && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />
+                            )}
+                          </span>
+                          <span>{option}</span>
                         </button>
                       );
                     })}
@@ -164,21 +175,21 @@ export function QuestionGroupCard({
                           type="button"
                           role="checkbox"
                           aria-checked={checked}
-                          disabled={disabled}
                           onClick={() => toggleMultiChoice(question.id, option)}
                           className={cn(
-                            "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all cursor-pointer",
+                            "flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm transition-all cursor-pointer",
                             checked
-                              ? "border-primary bg-primary/10 font-medium text-primary"
-                              : "border-border bg-background hover:bg-accent",
+                              ? "border-primary bg-primary/10 font-medium text-primary shadow-2xs"
+                              : "border-border bg-background hover:border-primary/40 hover:bg-accent",
                           )}
                         >
                           <span
+                            aria-hidden="true"
                             className={cn(
-                              "flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px]",
+                              "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px]",
                               checked
                                 ? "border-primary bg-primary text-primary-foreground"
-                                : "border-muted-foreground/40",
+                                : "border-muted-foreground/40 bg-background",
                             )}
                           >
                             {checked ? "✓" : ""}
@@ -197,7 +208,6 @@ export function QuestionGroupCard({
                       size="sm"
                       variant={val === true ? "default" : "outline"}
                       aria-pressed={val === true}
-                      disabled={disabled}
                       onClick={() => setAnswer(question.id, true)}
                     >
                       Yes
@@ -207,7 +217,6 @@ export function QuestionGroupCard({
                       size="sm"
                       variant={val === false ? "default" : "outline"}
                       aria-pressed={val === false}
-                      disabled={disabled}
                       onClick={() => setAnswer(question.id, false)}
                     >
                       No
