@@ -108,6 +108,7 @@ describe("buildWebAdapterPrompt", () => {
     const applyPrompt = buildWebAdapterPrompt(tempRoot, "apply").systemPrompt;
     expect(applyPrompt).toContain("NEVER run empty-directory CLI scaffolders");
     expect(applyPrompt).toContain("embedded SQLite");
+    expect(applyPrompt).toContain("npx --no-install tsc --noEmit");
 
     const testPrompt = buildWebAdapterPrompt(tempRoot, "test").systemPrompt;
     expect(testPrompt).toContain("Active Stage: TEST");

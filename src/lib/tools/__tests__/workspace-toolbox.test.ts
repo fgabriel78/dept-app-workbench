@@ -77,4 +77,33 @@ describe("WorkspaceToolbox", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe("green");
   });
+
+  it("serializes concurrent runCommand calls in invocation order without poisoning on errors", async () => {
+    const toolbox = new WorkspaceToolbox({
+      projectRoot: tempRoot,
+      commandFilter: (cmd) =>
+        cmd.includes("blocked")
+          ? { allowed: false, reason: "blocked by filter" }
+          : { allowed: true },
+    });
+
+    const slowFirst = toolbox.runCommand(
+      "node -e \"const fs=require('fs'); setTimeout(() => { fs.appendFileSync('order.txt', 'first\\n'); }, 80);\"",
+    );
+    const rejectedSecond = toolbox.runCommand("blocked-command");
+    const fastThird = toolbox.runCommand(
+      "node -e \"const fs=require('fs'); fs.appendFileSync('order.txt', 'third\\n');\"",
+    );
+
+    const [firstResult, secondResult, thirdResult] = await Promise.allSettled([
+      slowFirst,
+      rejectedSecond,
+      fastThird,
+    ]);
+
+    expect(firstResult.status).toBe("fulfilled");
+    expect(secondResult.status).toBe("rejected");
+    expect(thirdResult.status).toBe("fulfilled");
+    expect(toolbox.readFile("order.txt").content).toBe("first\nthird\n");
+  });
 });

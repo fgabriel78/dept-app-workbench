@@ -79,6 +79,7 @@ export class WorkspaceToolbox {
   private readonly writePathFilter?: WorkspaceToolboxOptions["writePathFilter"];
   private readonly onArtifactWritten?: WorkspaceToolboxOptions["onArtifactWritten"];
   private readonly commandTimeoutMs: number;
+  private commandQueue: Promise<void> = Promise.resolve();
 
   constructor(options: WorkspaceToolboxOptions) {
     const resolvedRoot = path.resolve(options.projectRoot);
@@ -232,7 +233,16 @@ export class WorkspaceToolbox {
     };
   }
 
-  public async runCommand(command: string): Promise<CommandResult> {
+  public runCommand(command: string): Promise<CommandResult> {
+    const run = this.commandQueue.then(() => this.executeCommand(command));
+    this.commandQueue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private async executeCommand(command: string): Promise<CommandResult> {
     const trimmed = command.trim();
     if (!trimmed) {
       throw new CommandNotAllowedError("Command must not be empty.");
