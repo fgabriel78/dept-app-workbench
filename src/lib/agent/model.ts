@@ -1,0 +1,76 @@
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
+import type { LanguageModelV1 } from "ai";
+import { parseEnv } from "@/lib/env";
+
+const SKIP_THOUGHT_SIGNATURE = "skip_thought_signature_validator";
+
+export function patchGeminiFunctionCallBody(body: string): string {
+  try {
+    const payload = JSON.parse(body) as {
+      contents?: Array<{
+        parts?: Array<Record<string, unknown>>;
+      }>;
+    };
+
+    if (!Array.isArray(payload.contents)) {
+      return body;
+    }
+
+    let modified = false;
+    for (const content of payload.contents) {
+      if (!Array.isArray(content.parts)) continue;
+      for (const part of content.parts) {
+        if (
+          part &&
+          typeof part === "object" &&
+          "functionCall" in part &&
+          !("thoughtSignature" in part) &&
+          !("thought_signature" in part)
+        ) {
+          part.thoughtSignature = SKIP_THOUGHT_SIGNATURE;
+          modified = true;
+        }
+      }
+    }
+
+    return modified ? JSON.stringify(payload) : body;
+  } catch {
+    return body;
+  }
+}
+
+export function createGoogleFetchWithThoughtSignatureFallback(
+  baseFetch: typeof fetch = fetch,
+): typeof fetch {
+  return async (input, init) => {
+    if (init && typeof init.body === "string") {
+      return baseFetch(input, {
+        ...init,
+        body: patchGeminiFunctionCallBody(init.body),
+      });
+    }
+    return baseFetch(input, init);
+  };
+}
+
+export function createLanguageModel(): LanguageModelV1 {
+  const env = parseEnv();
+
+  if (env.provider === "openai") {
+    const openai = createOpenAI({ apiKey: env.apiKey });
+    return openai(env.model);
+  }
+
+  if (env.provider === "anthropic") {
+    const anthropic = createAnthropic({ apiKey: env.apiKey });
+    return anthropic(env.model);
+  }
+
+  const google = createGoogleGenerativeAI({
+    apiKey: env.apiKey,
+    fetch: createGoogleFetchWithThoughtSignatureFallback(),
+  });
+  return google(env.model);
+}
