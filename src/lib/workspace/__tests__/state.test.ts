@@ -86,7 +86,16 @@ describe("workspace state detector", () => {
     fs.writeFileSync(path.join(changeDir, "tasks.md"), "- [x] 1.1 Done\n- [x] 1.2 Done\n", "utf8");
     const readyToArchive = inspectWorkspaceState(tempRoot);
     expect(readyToArchive.phase).toBe("ready-to-archive");
-    expect(readyToArchive.recommendedStage).toBe("archive");
+    expect(readyToArchive.recommendedStage).toBe("test");
+    expect(readyToArchive.stages).toHaveLength(6);
+    expect(readyToArchive.stages.map((s) => s.id)).toEqual([
+      "brief",
+      "explore",
+      "propose",
+      "apply",
+      "test",
+      "archive",
+    ]);
   });
 
   it("parses task progress accurately", () => {

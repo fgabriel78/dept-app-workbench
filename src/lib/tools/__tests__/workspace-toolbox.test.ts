@@ -68,4 +68,13 @@ describe("WorkspaceToolbox", () => {
       path.resolve(tempRoot).toLowerCase(),
     );
   });
+
+  it("strips ANSI escape sequences from command stdout and stderr", async () => {
+    const toolbox = new WorkspaceToolbox({ projectRoot: tempRoot });
+    const result = await toolbox.runCommand(
+      "node -e \"console.log('\\x1b[32mgreen\\x1b[39m')\"",
+    );
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("green");
+  });
 });

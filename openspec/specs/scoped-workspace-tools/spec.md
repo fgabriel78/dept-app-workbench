@@ -22,3 +22,14 @@ The system SHALL restrict available workspace tools based on the active lifecycl
 #### Scenario: Full workspace tools during Apply
 - **WHEN** the active stage is `Apply`
 - **THEN** the agent SHALL have access to file write/edit tools and project command execution (such as `openspec`, `tsc`, and build commands) within the project root
+
+#### Scenario: Archive stage permits openspec archive and read-only inspection
+- **WHEN** the active stage is `Archive`
+- **THEN** the agent SHALL have access to `openspec archive` and read-only `openspec` inspection commands (including `list`, `status`, `show`, `view`, `validate`, `instructions`, and `context`) while file write/edit tools and arbitrary shell commands remain disabled
+
+### Requirement: Clean command output without ANSI escape sequences
+The system SHALL strip ANSI terminal color and formatting escape sequences from command `stdout` and `stderr` before returning results to the agent or displaying them in activity details.
+
+#### Scenario: Command emits ANSI-colored output
+- **WHEN** a workspace command writes ANSI escape codes (such as `\u001b[32m` or `\u001b[39m`) to `stdout` or `stderr`
+- **THEN** the returned command result contains plain text with all ANSI escape sequences removed

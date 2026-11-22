@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { useI18n } from "./I18nProvider";
 
 export type QuestionAnswerValue = string | string[] | boolean;
 export type QuestionAnswersMap = Record<string, QuestionAnswerValue>;
@@ -19,9 +20,14 @@ export type QuestionGroupCardProps = {
   onSubmit: (answers: QuestionAnswersMap) => void;
 };
 
-function formatAnswerSummary(question: QuestionItem, value: QuestionAnswerValue | undefined): string {
+function formatAnswerSummary(
+  question: QuestionItem,
+  value: QuestionAnswerValue | undefined,
+  yesLabel: string,
+  noLabel: string,
+): string {
   if (value === undefined || value === "") return "—";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "boolean") return value ? yesLabel : noLabel;
   if (Array.isArray(value)) return value.length > 0 ? value.join(", ") : "—";
   return value;
 }
@@ -39,6 +45,7 @@ export function QuestionGroupCard({
   disabled = false,
   onSubmit,
 }: QuestionGroupCardProps) {
+  const { t } = useI18n();
   const [answers, setAnswers] = useState<QuestionAnswersMap>({});
   const isSubmitted = Boolean(submittedAnswers);
 
@@ -74,9 +81,9 @@ export function QuestionGroupCard({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <CardTitle>{payload.title ?? "Questions Answered"}</CardTitle>
+              <CardTitle>{payload.title ?? t.questionCard.defaultSubmittedTitle}</CardTitle>
             </div>
-            <Badge variant="success">Submitted</Badge>
+            <Badge variant="success">{t.questionCard.submittedBadge}</Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-2.5">
@@ -84,7 +91,12 @@ export function QuestionGroupCard({
             <div key={q.id} className="rounded-lg border border-emerald-200/60 bg-background/80 p-2.5">
               <div className="text-xs font-medium text-muted-foreground">{q.prompt}</div>
               <div className="mt-1 text-sm font-medium text-foreground">
-                {formatAnswerSummary(q, submittedAnswers[q.id])}
+                {formatAnswerSummary(
+                  q,
+                  submittedAnswers[q.id],
+                  t.questionCard.yes,
+                  t.questionCard.no,
+                )}
               </div>
             </div>
           ))}
@@ -99,7 +111,7 @@ export function QuestionGroupCard({
         <CardHeader>
           <div className="flex items-center gap-2">
             <HelpCircle className="h-4 w-4 text-primary" />
-            <CardTitle>{payload.title ?? "Please share a few details"}</CardTitle>
+            <CardTitle>{payload.title ?? t.questionCard.defaultTitle}</CardTitle>
           </div>
           {payload.description && <CardDescription>{payload.description}</CardDescription>}
         </CardHeader>
@@ -120,7 +132,7 @@ export function QuestionGroupCard({
                 {question.type === "text" && (
                   <Textarea
                     id={`q-${payload.id}-${question.id}`}
-                    placeholder={question.placeholder ?? "Type your answer..."}
+                    placeholder={question.placeholder ?? t.questionCard.textPlaceholder}
                     value={typeof val === "string" ? val : ""}
                     onChange={(e) => setAnswer(question.id, e.target.value)}
                   />
@@ -210,7 +222,7 @@ export function QuestionGroupCard({
                       aria-pressed={val === true}
                       onClick={() => setAnswer(question.id, true)}
                     >
-                      Yes
+                      {t.questionCard.yes}
                     </Button>
                     <Button
                       type="button"
@@ -219,7 +231,7 @@ export function QuestionGroupCard({
                       aria-pressed={val === false}
                       onClick={() => setAnswer(question.id, false)}
                     >
-                      No
+                      {t.questionCard.no}
                     </Button>
                   </div>
                 )}
@@ -231,7 +243,7 @@ export function QuestionGroupCard({
         <CardFooter className="justify-end border-t border-border/60 pt-3">
           <Button type="submit" disabled={!canSubmit}>
             <Send className="h-3.5 w-3.5" />
-            Submit Answers
+            {t.questionCard.submitAnswers}
           </Button>
         </CardFooter>
       </form>

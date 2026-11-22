@@ -33,28 +33,32 @@ describe("stage-gated tool filtering", () => {
   it("rejects mutating commands during explore stage", () => {
     const filter = getStageCommandFilter("explore");
     expect(filter("openspec list --json").allowed).toBe(true);
+    expect(filter("openspec context --json").allowed).toBe(true);
     expect(filter("openspec status --change demo --json").allowed).toBe(true);
     expect(filter("openspec new change demo").allowed).toBe(false);
     expect(filter("npm install").allowed).toBe(false);
     expect(filter("openspec list && rm -rf .").allowed).toBe(false);
+    expect(getStageCommandFilter("propose")("openspec context --json").allowed).toBe(true);
   });
 
-  it("grants full workspace tools including write_file, edit_file, and run_command during apply", () => {
-    const tools = buildStageTools({ projectRoot: tempRoot, stage: "apply" });
-    expect(Object.keys(tools)).toEqual(
-      expect.arrayContaining([
-        "read_file",
-        "list_dir",
-        "write_file",
-        "edit_file",
-        "run_command",
-        "ask_questions",
-        "render_diagram",
-      ]),
-    );
-    const filter = getStageCommandFilter("apply");
-    expect(filter("npx tsc --noEmit").allowed).toBe(true);
-    expect(filter("npm run build").allowed).toBe(true);
+  it("grants full workspace tools including write_file, edit_file, and run_command during apply and test", () => {
+    for (const stage of ["apply", "test"] as const) {
+      const tools = buildStageTools({ projectRoot: tempRoot, stage });
+      expect(Object.keys(tools)).toEqual(
+        expect.arrayContaining([
+          "read_file",
+          "list_dir",
+          "write_file",
+          "edit_file",
+          "run_command",
+          "ask_questions",
+          "render_diagram",
+        ]),
+      );
+      const filter = getStageCommandFilter(stage);
+      expect(filter("npx tsc --noEmit").allowed).toBe(true);
+      expect(filter("npm run build").allowed).toBe(true);
+    }
   });
 
   it("scopes brief writes to app-brief.md and propose writes to openspec/", () => {
@@ -72,6 +76,25 @@ describe("stage-gated tool filtering", () => {
     expect(STAGE_ALLOWED_TOOLS.archive).not.toContain("edit_file");
     const filter = getStageCommandFilter("archive");
     expect(filter("openspec archive demo").allowed).toBe(true);
+    expect(filter("openspec instructions archive --change demo --json").allowed).toBe(true);
+    expect(filter("openspec context --json").allowed).toBe(true);
     expect(filter("npm run build").allowed).toBe(false);
+  });
+
+  it("emits localized tool activity labels for es and ca", async () => {
+    const activities: string[] = [];
+    const tools = buildStageTools({
+      projectRoot: tempRoot,
+      stage: "explore",
+      locale: "ca",
+      onActivity: (act) => activities.push(act.label),
+    });
+
+    await tools.read_file.execute!(
+      { path: "README.md" },
+      { toolCallId: "tc-1", messages: [] },
+    );
+    expect(activities[0]).toBe("Llegint README.md");
+    expect(activities[1]).toBe("Llegit README.md");
   });
 });

@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { getDictionary, type Locale } from "@/lib/i18n";
 import type {
   ActiveChangeInfo,
   StageId,
@@ -14,12 +15,16 @@ export type WorkspaceValidationResult =
   | { valid: true; rootPath: string; projectName: string }
   | { valid: false; error: string };
 
-export function validateWorkspaceRoot(dirPath: string): WorkspaceValidationResult {
+export function validateWorkspaceRoot(
+  dirPath: string,
+  locale: Locale = "en",
+): WorkspaceValidationResult {
+  const { validation } = getDictionary(locale);
   const trimmed = dirPath.trim();
   if (!trimmed) {
     return {
       valid: false,
-      error: "Please enter a local project folder path.",
+      error: validation.emptyPath,
     };
   }
 
@@ -27,7 +32,7 @@ export function validateWorkspaceRoot(dirPath: string): WorkspaceValidationResul
   if (!fs.existsSync(resolved)) {
     return {
       valid: false,
-      error: `The folder "${trimmed}" does not exist on this workstation.`,
+      error: validation.missingFolder(trimmed),
     };
   }
 
@@ -37,14 +42,14 @@ export function validateWorkspaceRoot(dirPath: string): WorkspaceValidationResul
   } catch {
     return {
       valid: false,
-      error: `Unable to access "${trimmed}". Check folder permissions.`,
+      error: validation.unreadableFolder(trimmed),
     };
   }
 
   if (!stat.isDirectory()) {
     return {
       valid: false,
-      error: `"${trimmed}" is a file, not a folder. Please select a project directory.`,
+      error: validation.fileNotFolder(trimmed),
     };
   }
 
@@ -53,8 +58,7 @@ export function validateWorkspaceRoot(dirPath: string): WorkspaceValidationResul
   if (!hasAgents && !hasOpenspec) {
     return {
       valid: false,
-      error:
-        "This folder does not look like a supported project workspace (missing both `.agents/` and `openspec/`).",
+      error: validation.missingMarkers,
     };
   }
 
@@ -104,7 +108,11 @@ function collectMarkdownFiles(dir: string, baseDir: string): string[] {
   return results.sort();
 }
 
-export function inspectWorkspaceState(projectRoot: string): WorkspaceState {
+export function inspectWorkspaceState(
+  projectRoot: string,
+  locale: Locale = "en",
+): WorkspaceState {
+  const { stages: stageCopy } = getDictionary(locale);
   const resolved = path.resolve(projectRoot);
   const projectName = path.basename(resolved);
   const hasAgentsDir = fs.existsSync(path.join(resolved, ".agents"));
@@ -166,7 +174,7 @@ export function inspectWorkspaceState(projectRoot: string): WorkspaceState {
     const { total, completed, remaining } = primaryChange.taskProgress;
     if (total > 0 && remaining === 0) {
       phase = "ready-to-archive";
-      recommendedStage = "archive";
+      recommendedStage = "test";
     } else if (total > 0 && completed > 0) {
       phase = "in-progress";
       recommendedStage = "apply";
@@ -192,14 +200,14 @@ export function inspectWorkspaceState(projectRoot: string): WorkspaceState {
   const stages: StageSummary[] = [
     {
       id: "brief",
-      label: "Brief",
-      description: "Functional interview & app-brief.md",
+      label: stageCopy.brief.label,
+      description: stageCopy.brief.description,
       status: hasAppBrief ? "completed" : recommendedStage === "brief" ? "active" : "available",
     },
     {
       id: "explore",
-      label: "Explore",
-      description: "Read-only architecture & requirement alignment",
+      label: stageCopy.explore.label,
+      description: stageCopy.explore.description,
       status: hasProposedArtifacts
         ? "completed"
         : recommendedStage === "explore"
@@ -210,8 +218,8 @@ export function inspectWorkspaceState(projectRoot: string): WorkspaceState {
     },
     {
       id: "propose",
-      label: "Propose",
-      description: "Generate proposal, specs, design & tasks",
+      label: stageCopy.propose.label,
+      description: stageCopy.propose.description,
       status:
         primaryChange && primaryChange.hasTasks
           ? "completed"
@@ -223,8 +231,8 @@ export function inspectWorkspaceState(projectRoot: string): WorkspaceState {
     },
     {
       id: "apply",
-      label: "Apply",
-      description: "Implement tasks & verify build",
+      label: stageCopy.apply.label,
+      description: stageCopy.apply.description,
       status: allTasksDone
         ? "completed"
         : recommendedStage === "apply"
@@ -234,17 +242,26 @@ export function inspectWorkspaceState(projectRoot: string): WorkspaceState {
             : "upcoming",
     },
     {
+      id: "test",
+      label: stageCopy.test.label,
+      description: stageCopy.test.description,
+      status:
+        recommendedStage === "test"
+          ? "active"
+          : allTasksDone
+            ? "available"
+            : "upcoming",
+    },
+    {
       id: "archive",
-      label: "Archive",
-      description: "Finalize and archive completed change",
+      label: stageCopy.archive.label,
+      description: stageCopy.archive.description,
       status:
         archivedChanges.length > 0 && activeChanges.length === 0
           ? "completed"
-          : recommendedStage === "archive"
-            ? "active"
-            : allTasksDone
-              ? "available"
-              : "upcoming",
+          : allTasksDone
+            ? "available"
+            : "upcoming",
     },
   ];
 

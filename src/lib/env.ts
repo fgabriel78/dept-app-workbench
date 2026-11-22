@@ -1,4 +1,7 @@
+import path from "path";
 import { z } from "zod";
+
+export const DEFAULT_TEMPLATE_REPO_URL = "https://github.com/fgabriel78/dept-app-brief.git";
 
 export const LLM_PROVIDERS = ["openai", "anthropic", "google"] as const;
 export type LlmProvider = (typeof LLM_PROVIDERS)[number];
@@ -71,5 +74,31 @@ export function parseEnv(raw: Record<string, string | undefined> = process.env):
     model: parsed.LLM_MODEL ?? DEFAULT_MODELS[parsed.LLM_PROVIDER],
     apiKey,
     defaultWorkspacePath: parsed.DEFAULT_WORKSPACE_PATH || undefined,
+  };
+}
+
+export type WorkspaceEnv = {
+  templateRepoUrl: string;
+  projectsRootDir: string;
+};
+
+const workspaceEnvSchema = z.object({
+  TEMPLATE_REPO_URL: z.string().trim().min(1).optional(),
+  PROJECTS_ROOT_DIR: z.string().trim().min(1).optional(),
+});
+
+export function parseWorkspaceEnv(
+  raw: Record<string, string | undefined> = process.env,
+): WorkspaceEnv {
+  const parsed = workspaceEnvSchema.parse({
+    TEMPLATE_REPO_URL: raw.TEMPLATE_REPO_URL || undefined,
+    PROJECTS_ROOT_DIR: raw.PROJECTS_ROOT_DIR || undefined,
+  });
+
+  return {
+    templateRepoUrl: parsed.TEMPLATE_REPO_URL ?? DEFAULT_TEMPLATE_REPO_URL,
+    projectsRootDir: parsed.PROJECTS_ROOT_DIR
+      ? path.resolve(parsed.PROJECTS_ROOT_DIR)
+      : path.resolve(process.cwd(), ".."),
   };
 }

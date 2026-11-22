@@ -8,13 +8,17 @@ Instead of working in raw Markdown and terminal ASCII art, users interact with a
 
 ## Key Features
 
-- **Local Workspace Selection & Lifecycle Detection**
-  - Point the workbench at any local cloned `dept-app-brief` or OpenSpec project directory (validated for `.agents/` or `openspec/`).
+- **Local Workspace Selection & Creation**
+  - **Open Existing Project:** Point the workbench at any local cloned `dept-app-brief` or OpenSpec project directory (validated for `.agents/` or `openspec/`).
+  - **Create New Project:** Enter a project name and the workbench automatically creates a sanitized hyphenated folder under `PROJECTS_ROOT_DIR`, clones `TEMPLATE_REPO_URL`, initializes a fresh Git repository (`git init`), and opens the `Brief` stage.
   - Automatically inspects `app-brief.md` and `openspec/changes/` to detect project readiness and highlight progress across the 5-stage stepper: **Brief → Explore → Propose → Apply → Archive**.
 - **Liquid Conversational UI**
   - **Question Group Cards (`ask_questions`)**: Multi-question agent turns render as interactive form cards supporting `text`, `single_choice`, `multi_choice`, and `confirm` inputs with a single submission action and a locked read-only summary after submission.
   - **Visual Mermaid Diagrams (`render_diagram` & fenced `mermaid` blocks)**: Client-side SVG rendering with zoom in/out/reset controls, a raw-source toggle, and a non-blocking fallback view for invalid syntax.
   - **Streaming Tool Activity Indicators**: Real-time SSE streaming with compact status badges (and expandable details) as the agent inspects or updates workspace files.
+- **Multilingual Support (English, Spanish & Catalan)**
+  - Automatically detects the system/browser language (`ca*` → Catalan, `es*` → Spanish, fallback `en`) and provides a persistent `EN | ES | CA` switcher in the header.
+  - Localizes the full UI, workspace validation messages, tool-activity labels, and AI assistant turns (including Question Group Cards, diagram labels, and generated artifacts).
 - **Live Artifact Inspector**
   - Side panel displaying formatted previews of `app-brief.md`, `proposal.md`, `design.md`, `specs/`, and `tasks.md` progress, automatically refreshing whenever `artifact_updated` SSE events arrive.
 - **Thin Web Adapter Layer**
@@ -70,6 +74,8 @@ cp .env.example .env.local
 | `ANTHROPIC_API_KEY` | Required when `LLM_PROVIDER=anthropic` | — |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Required when `LLM_PROVIDER=google` | — |
 | `DEFAULT_WORKSPACE_PATH` | Optional default local project path prefilled in the workspace bar | — |
+| `TEMPLATE_REPO_URL` | Template Git repository URL cloned when creating a new project | `https://github.com/fgabriel78/dept-app-brief.git` |
+| `PROJECTS_ROOT_DIR` | Parent directory where newly created project folders are placed | Parent folder of `dept-app-workbench` |
 
 Environment variables are validated at runtime with Zod in [`src/lib/env.ts`](src/lib/env.ts).
 
@@ -113,6 +119,7 @@ Each lifecycle stage exposes only the tools appropriate for that phase (enforced
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
 | `/api/workspace/select` | `POST` | Validates a local directory path (`.agents/` or `openspec/`) and returns detected lifecycle state + initial artifacts |
+| `/api/workspace/create` | `POST` | Creates a new project folder from a project name, clones `TEMPLATE_REPO_URL`, runs `git init`, and returns initial state |
 | `/api/workspace/artifacts` | `GET` | Reads and returns current workspace state and formatted artifacts for `?path=<projectRoot>` |
 | `/api/agent/turn` | `POST` | Runs the direct-LLM tool loop and streams SSE events (`text_delta`, `tool_activity`, `question_group`, `diagram`, `artifact_updated`, `error`, `done`) |
 

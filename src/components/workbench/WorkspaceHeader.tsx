@@ -1,19 +1,23 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Check,
   ChevronRight,
   FolderOpen,
+  FolderPlus,
+  Globe,
   Layers,
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import type { StageId, WorkspaceState } from "@/lib/types";
+import { LOCALE_LABELS, LOCALE_NAMES, SUPPORTED_LOCALES } from "@/lib/i18n";
+import { STAGES, type StageId, type WorkspaceState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useI18n } from "./I18nProvider";
 
 export type WorkspaceHeaderProps = {
   workspaceState: WorkspaceState | null;
@@ -22,16 +26,9 @@ export type WorkspaceHeaderProps = {
   isLoadingWorkspace?: boolean;
   workspaceError?: string | null;
   onSelectWorkspace: (folderPath: string) => void | Promise<void>;
+  onCreateWorkspace?: (projectName: string) => void | Promise<void>;
   onSelectStage: (stage: StageId) => void;
 };
-
-const DEFAULT_STAGE_META: Array<{ id: StageId; label: string; description: string }> = [
-  { id: "brief", label: "Brief", description: "Functional interview" },
-  { id: "explore", label: "Explore", description: "Read-only alignment" },
-  { id: "propose", label: "Propose", description: "Specs & plan" },
-  { id: "apply", label: "Apply", description: "Implement tasks" },
-  { id: "archive", label: "Archive", description: "Finalize change" },
-];
 
 export function WorkspaceHeader({
   workspaceState,
@@ -40,17 +37,39 @@ export function WorkspaceHeader({
   isLoadingWorkspace = false,
   workspaceError = null,
   onSelectWorkspace,
+  onCreateWorkspace,
   onSelectStage,
 }: WorkspaceHeaderProps) {
+  const { locale, setLocale, t } = useI18n();
+  const [mode, setMode] = useState<"open" | "create">("open");
   const [pathInput, setPathInput] = useState(initialPath || workspaceState?.rootPath || "");
+  const [projectNameInput, setProjectNameInput] = useState("");
+
+  useEffect(() => {
+    if (workspaceState?.rootPath) {
+      setPathInput(workspaceState.rootPath);
+    }
+  }, [workspaceState?.rootPath]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pathInput.trim()) return;
-    void onSelectWorkspace(pathInput.trim());
+    if (mode === "open") {
+      if (!pathInput.trim()) return;
+      void onSelectWorkspace(pathInput.trim());
+    } else {
+      if (!projectNameInput.trim()) return;
+      void onCreateWorkspace?.(projectNameInput.trim());
+    }
   };
 
-  const stages = workspaceState?.stages ?? DEFAULT_STAGE_META.map((s) => ({ ...s, status: "upcoming" as const }));
+  const stages =
+    workspaceState?.stages ??
+    STAGES.map((id) => ({
+      id,
+      label: t.stages[id].label,
+      description: t.stages[id].shortDescription,
+      status: "upcoming" as const,
+    }));
 
   return (
     <header className="border-b border-border bg-card/90 backdrop-blur-xs">
@@ -62,41 +81,126 @@ export function WorkspaceHeader({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-sm font-semibold tracking-tight">Dept App Workbench</h1>
+                <h1 className="text-sm font-semibold tracking-tight">{t.header.appTitle}</h1>
                 {workspaceState && (
                   <Badge variant="secondary" className="font-mono text-[11px]">
                     {workspaceState.projectName}
                   </Badge>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Visual functional brief &amp; OpenSpec lifecycle studio
-              </p>
+              <p className="text-xs text-muted-foreground">{t.header.appSubtitle}</p>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="flex flex-1 max-w-xl items-center gap-2">
-            <div className="relative flex-1">
-              <FolderOpen className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                aria-label="Local project folder path"
-                placeholder="Enter local project path (e.g. C:\Users\you\Dev\my-dept-app)"
-                value={pathInput}
-                onChange={(e) => setPathInput(e.target.value)}
-                className="pl-8 font-mono text-xs"
-              />
+          <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+            <div
+              role="tablist"
+              aria-label="Workspace mode"
+              className="flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "open"}
+                onClick={() => setMode("open")}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer",
+                  mode === "open"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
+              >
+                {t.header.modeOpen}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "create"}
+                onClick={() => setMode("create")}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer",
+                  mode === "create"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
+              >
+                {t.header.modeCreate}
+              </button>
             </div>
-            <Button type="submit" size="sm" disabled={isLoadingWorkspace || !pathInput.trim()}>
-              {isLoadingWorkspace ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Loading
-                </>
+
+            <form onSubmit={handleSubmit} className="flex flex-1 max-w-xl items-center gap-2">
+              {mode === "open" ? (
+                <div className="relative flex-1">
+                  <FolderOpen className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    aria-label={t.header.pathAriaLabel}
+                    placeholder={t.header.pathPlaceholder}
+                    value={pathInput}
+                    onChange={(e) => setPathInput(e.target.value)}
+                    className="pl-8 font-mono text-xs"
+                  />
+                </div>
               ) : (
-                "Open Project"
+                <div className="relative flex-1">
+                  <FolderPlus className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    aria-label={t.header.projectNameAriaLabel}
+                    placeholder={t.header.projectNamePlaceholder}
+                    value={projectNameInput}
+                    onChange={(e) => setProjectNameInput(e.target.value)}
+                    className="pl-8 text-xs"
+                  />
+                </div>
               )}
-            </Button>
-          </form>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={
+                  isLoadingWorkspace ||
+                  (mode === "open" ? !pathInput.trim() : !projectNameInput.trim())
+                }
+              >
+                {isLoadingWorkspace ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {mode === "open" ? t.header.loading : t.header.creating}
+                  </>
+                ) : mode === "open" ? (
+                  t.header.openProject
+                ) : (
+                  t.header.createProject
+                )}
+              </Button>
+            </form>
+
+            <div
+              role="group"
+              aria-label={t.header.languageAria}
+              className="flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5"
+            >
+              <Globe className="mx-1.5 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+              {SUPPORTED_LOCALES.map((loc) => {
+                const active = locale === loc;
+                return (
+                  <button
+                    key={loc}
+                    type="button"
+                    aria-pressed={active}
+                    title={LOCALE_NAMES[loc]}
+                    onClick={() => setLocale(loc)}
+                    className={cn(
+                      "rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                    )}
+                  >
+                    {LOCALE_LABELS[loc]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {workspaceError && (
@@ -109,10 +213,11 @@ export function WorkspaceHeader({
           </div>
         )}
 
-        <nav aria-label="Lifecycle stages" className="flex flex-wrap items-center gap-1.5">
+        <nav aria-label={t.header.lifecycleNavAria} className="flex flex-wrap items-center gap-1.5">
           {stages.map((stage, idx) => {
             const isActive = activeStage === stage.id;
             const isCompleted = stage.status === "completed";
+            const stageText = t.stages[stage.id];
             return (
               <React.Fragment key={stage.id}>
                 <button
@@ -142,9 +247,9 @@ export function WorkspaceHeader({
                     {isCompleted ? <Check className="h-3 w-3" /> : idx + 1}
                   </span>
                   <div className="leading-tight">
-                    <div className="text-xs font-semibold">{stage.label}</div>
+                    <div className="text-xs font-semibold">{stageText.label}</div>
                     <div className="hidden text-[10px] opacity-80 sm:block">
-                      {stage.description}
+                      {stageText.shortDescription}
                     </div>
                   </div>
                 </button>

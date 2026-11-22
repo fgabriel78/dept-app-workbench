@@ -3,6 +3,7 @@ import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { POST as selectPost } from "../select/route";
+import { POST as createPost } from "../create/route";
 import { GET as artifactsGet } from "../artifacts/route";
 
 describe("workspace API routes", () => {
@@ -55,5 +56,46 @@ describe("workspace API routes", () => {
     const invalidReq = new Request("http://localhost/api/workspace/artifacts?path=");
     const invalidRes = await artifactsGet(invalidReq);
     expect(invalidRes.status).toBe(400);
+  });
+
+  it("returns localized validation errors and stage labels for es and ca locales", async () => {
+    const esReq = new Request("http://localhost/api/workspace/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: path.join(tempRoot, "missing-dir"), locale: "es" }),
+    });
+    const esRes = await selectPost(esReq);
+    expect(esRes.status).toBe(400);
+    expect((await esRes.json()).error).toMatch(/no existe/i);
+
+    const caReq = new Request("http://localhost/api/workspace/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: tempRoot, locale: "ca" }),
+    });
+    const caRes = await selectPost(caReq);
+    expect(caRes.status).toBe(200);
+    const caJson = await caRes.json();
+    expect(caJson.state.stages.find((s: { id: string }) => s.id === "explore")?.label).toBe("Explorar");
+  });
+
+  it("POST /api/workspace/create rejects empty or invalid project names with localized errors", async () => {
+    const emptyReq = new Request("http://localhost/api/workspace/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectName: "", locale: "es" }),
+    });
+    const emptyRes = await createPost(emptyReq);
+    expect(emptyRes.status).toBe(400);
+    expect((await emptyRes.json()).error).toMatch(/nombre/i);
+
+    const invalidReq = new Request("http://localhost/api/workspace/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectName: "!!!", locale: "ca" }),
+    });
+    const invalidRes = await createPost(invalidReq);
+    expect(invalidRes.status).toBe(400);
+    expect((await invalidRes.json()).error).toMatch(/lletra o un número/i);
   });
 });

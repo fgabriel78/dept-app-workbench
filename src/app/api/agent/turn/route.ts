@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { SUPPORTED_LOCALES } from "@/lib/i18n";
 import { STAGES } from "@/lib/types";
 import { validateWorkspaceRoot } from "@/lib/workspace/state";
 import { createAgentTurnStream } from "@/lib/agent/turn-runner";
@@ -9,6 +10,7 @@ export const runtime = "nodejs";
 const turnRequestSchema = z.object({
   projectRoot: z.string().min(1),
   stage: z.enum(STAGES),
+  locale: z.enum(SUPPORTED_LOCALES).default("en"),
   messages: z
     .array(
       z.object({
@@ -35,7 +37,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const validation = validateWorkspaceRoot(parsed.data.projectRoot);
+  const validation = validateWorkspaceRoot(parsed.data.projectRoot, parsed.data.locale);
   if (!validation.valid) {
     return NextResponse.json({ error: validation.error }, { status: 400 });
   }
@@ -43,6 +45,7 @@ export async function POST(request: Request) {
   const stream = createAgentTurnStream({
     projectRoot: validation.rootPath,
     stage: parsed.data.stage,
+    locale: parsed.data.locale,
     messages: parsed.data.messages,
     signal: request.signal,
   });

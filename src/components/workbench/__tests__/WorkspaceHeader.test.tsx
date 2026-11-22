@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { WorkspaceState } from "@/lib/types";
+import { I18nProvider } from "../I18nProvider";
 import { WorkspaceHeader } from "../WorkspaceHeader";
 
 const mockState: WorkspaceState = {
@@ -20,12 +21,13 @@ const mockState: WorkspaceState = {
     { id: "explore", label: "Explore", description: "Read-only alignment", status: "active" },
     { id: "propose", label: "Propose", description: "Specs & plan", status: "available" },
     { id: "apply", label: "Apply", description: "Implement tasks", status: "upcoming" },
+    { id: "test", label: "Test", description: "Run & preview app", status: "upcoming" },
     { id: "archive", label: "Archive", description: "Finalize change", status: "upcoming" },
   ],
 };
 
 describe("WorkspaceHeader", () => {
-  it("renders all 5 lifecycle stages and notifies when switching stages", async () => {
+  it("renders all 6 lifecycle stages and notifies when switching stages", async () => {
     const user = userEvent.setup();
     const onSelectStage = vi.fn();
     const onSelectWorkspace = vi.fn();
@@ -66,5 +68,48 @@ describe("WorkspaceHeader", () => {
     await user.type(input, "C:\\Dev\\my-app");
     await user.click(screen.getByRole("button", { name: /Open Project/i }));
     expect(onSelectWorkspace).toHaveBeenCalledWith("C:\\Dev\\my-app");
+  });
+
+  it("switches UI labels when selecting ES or CA in the header language switcher", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider initialLocale="en">
+        <WorkspaceHeader
+          workspaceState={mockState}
+          activeStage="explore"
+          onSelectWorkspace={vi.fn()}
+          onSelectStage={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "CA" }));
+    expect(screen.getByRole("button", { name: "Obrir projecte" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Explorar/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "ES" }));
+    expect(screen.getByRole("button", { name: "Abrir proyecto" })).toBeInTheDocument();
+  });
+
+  it("switches to Create New mode and submits a new project name", async () => {
+    const user = userEvent.setup();
+    const onCreateWorkspace = vi.fn();
+    render(
+      <I18nProvider initialLocale="en">
+        <WorkspaceHeader
+          workspaceState={null}
+          activeStage="brief"
+          onSelectWorkspace={vi.fn()}
+          onCreateWorkspace={onCreateWorkspace}
+          onSelectStage={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: /Create New/i }));
+    const nameInput = screen.getByLabelText(/New project name/i);
+    await user.type(nameInput, "Leave Tracker");
+    await user.click(screen.getByRole("button", { name: /Create Project/i }));
+    expect(onCreateWorkspace).toHaveBeenCalledWith("Leave Tracker");
   });
 });

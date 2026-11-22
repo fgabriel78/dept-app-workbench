@@ -4,6 +4,7 @@ import React, { useEffect, useId, useState } from "react";
 import { AlertTriangle, Code2, Eye, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useI18n } from "./I18nProvider";
 
 export type MermaidDiagramCardProps = {
   title?: string;
@@ -13,6 +14,7 @@ export type MermaidDiagramCardProps = {
 let mermaidInitialized = false;
 
 export function MermaidDiagramCard({ title, mermaidCode }: MermaidDiagramCardProps) {
+  const { t } = useI18n();
   const reactId = useId().replace(/[^a-zA-Z0-9]/g, "");
   const [svg, setSvg] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
@@ -43,7 +45,7 @@ export function MermaidDiagramCard({ title, mermaidCode }: MermaidDiagramCardPro
       } catch (err: unknown) {
         if (!cancelled) {
           setSvg(null);
-          setRenderError(err instanceof Error ? err.message : "Invalid Mermaid diagram syntax.");
+          setRenderError(err instanceof Error ? err.message : t.diagramCard.invalidSyntax);
         }
       }
     }
@@ -52,7 +54,7 @@ export function MermaidDiagramCard({ title, mermaidCode }: MermaidDiagramCardPro
     return () => {
       cancelled = true;
     };
-  }, [mermaidCode, reactId]);
+  }, [mermaidCode, reactId, t.diagramCard.invalidSyntax]);
 
   const zoomIn = () => setZoom((z) => Math.min(2, Number((z + 0.2).toFixed(2))));
   const zoomOut = () => setZoom((z) => Math.max(0.5, Number((z - 0.2).toFixed(2))));
@@ -61,7 +63,7 @@ export function MermaidDiagramCard({ title, mermaidCode }: MermaidDiagramCardPro
   return (
     <Card className="overflow-hidden border-border">
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border/60 bg-muted/40 py-2.5">
-        <CardTitle className="text-xs font-semibold">{title ?? "Visual Diagram"}</CardTitle>
+        <CardTitle className="text-xs font-semibold">{title ?? t.diagramCard.defaultTitle}</CardTitle>
         <div className="flex items-center gap-1">
           {!showSource && !renderError && (
             <>
@@ -69,7 +71,7 @@ export function MermaidDiagramCard({ title, mermaidCode }: MermaidDiagramCardPro
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label="Zoom out"
+                aria-label={t.diagramCard.zoomOut}
                 onClick={zoomOut}
               >
                 <ZoomOut className="h-3.5 w-3.5" />
@@ -81,7 +83,7 @@ export function MermaidDiagramCard({ title, mermaidCode }: MermaidDiagramCardPro
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label="Zoom in"
+                aria-label={t.diagramCard.zoomIn}
                 onClick={zoomIn}
               >
                 <ZoomIn className="h-3.5 w-3.5" />
@@ -90,7 +92,7 @@ export function MermaidDiagramCard({ title, mermaidCode }: MermaidDiagramCardPro
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label="Reset zoom"
+                aria-label={t.diagramCard.resetZoom}
                 onClick={resetZoom}
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -106,12 +108,12 @@ export function MermaidDiagramCard({ title, mermaidCode }: MermaidDiagramCardPro
             {showSource ? (
               <>
                 <Eye className="h-3.5 w-3.5" />
-                Diagram
+                {t.diagramCard.showDiagram}
               </>
             ) : (
               <>
                 <Code2 className="h-3.5 w-3.5" />
-                Source
+                {t.diagramCard.showSource}
               </>
             )}
           </Button>
@@ -126,7 +128,7 @@ export function MermaidDiagramCard({ title, mermaidCode }: MermaidDiagramCardPro
           >
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
             <div>
-              <div className="font-medium">Could not render diagram visually — showing raw source</div>
+              <div className="font-medium">{t.diagramCard.renderFallbackTitle}</div>
               <div className="mt-0.5 opacity-80">{renderError}</div>
             </div>
           </div>
@@ -146,7 +148,7 @@ export function MermaidDiagramCard({ title, mermaidCode }: MermaidDiagramCardPro
             />
           </div>
         ) : (
-          <div className="py-6 text-center text-xs text-muted-foreground">Rendering diagram...</div>
+          <div className="py-6 text-center text-xs text-muted-foreground">{t.diagramCard.rendering}</div>
         )}
       </CardContent>
     </Card>

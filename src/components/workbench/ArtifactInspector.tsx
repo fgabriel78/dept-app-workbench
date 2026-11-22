@@ -8,6 +8,7 @@ import type { WorkspaceArtifacts } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useI18n } from "./I18nProvider";
 
 export type ArtifactInspectorProps = {
   projectRoot: string | null;
@@ -37,6 +38,7 @@ export function ArtifactInspector({
   refreshToken,
   onArtifactsRefreshed,
 }: ArtifactInspectorProps) {
+  const { locale, t } = useI18n();
   const [artifacts, setArtifacts] = useState<WorkspaceArtifacts | null>(initialArtifacts);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -48,7 +50,9 @@ export function ArtifactInspector({
     if (!projectRoot) return;
     setIsRefreshing(true);
     try {
-      const res = await fetch(`/api/workspace/artifacts?path=${encodeURIComponent(projectRoot)}`);
+      const res = await fetch(
+        `/api/workspace/artifacts?path=${encodeURIComponent(projectRoot)}&locale=${locale}`,
+      );
       if (res.ok) {
         const data = (await res.json()) as { artifacts: WorkspaceArtifacts };
         setArtifacts(data.artifacts);
@@ -57,7 +61,7 @@ export function ArtifactInspector({
     } finally {
       setIsRefreshing(false);
     }
-  }, [projectRoot, onArtifactsRefreshed]);
+  }, [projectRoot, locale, onArtifactsRefreshed]);
 
   useEffect(() => {
     if (refreshToken > 0 && projectRoot) {
@@ -73,7 +77,7 @@ export function ArtifactInspector({
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-primary" />
-          <h2 className="text-sm font-semibold">Live Artifacts</h2>
+          <h2 className="text-sm font-semibold">{t.artifacts.title}</h2>
           {artifacts?.activeChangeName && (
             <Badge variant="outline" className="font-mono text-[10px]">
               {artifacts.activeChangeName}
@@ -84,7 +88,7 @@ export function ArtifactInspector({
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="Refresh artifacts"
+          aria-label={t.artifacts.refreshAria}
           disabled={!projectRoot || isRefreshing}
           onClick={() => void fetchArtifacts()}
         >
@@ -97,7 +101,7 @@ export function ArtifactInspector({
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 font-medium">
               <CheckSquare className="h-3.5 w-3.5 text-emerald-600" />
-              Task Progress
+              {t.artifacts.taskProgress}
             </span>
             <span className="font-mono text-muted-foreground">
               {progress.completed}/{progress.total} ({pct}%)
@@ -115,31 +119,31 @@ export function ArtifactInspector({
       <div className="flex-1 overflow-y-auto p-4">
         <Tabs defaultValue="brief">
           <TabsList className="w-full justify-between">
-            <TabsTrigger value="brief">Brief</TabsTrigger>
-            <TabsTrigger value="proposal">Proposal</TabsTrigger>
-            <TabsTrigger value="design">Design</TabsTrigger>
-            <TabsTrigger value="specs">Specs</TabsTrigger>
-            <TabsTrigger value="tasks">Tasks</TabsTrigger>
+            <TabsTrigger value="brief">{t.artifacts.tabs.brief}</TabsTrigger>
+            <TabsTrigger value="proposal">{t.artifacts.tabs.proposal}</TabsTrigger>
+            <TabsTrigger value="design">{t.artifacts.tabs.design}</TabsTrigger>
+            <TabsTrigger value="specs">{t.artifacts.tabs.specs}</TabsTrigger>
+            <TabsTrigger value="tasks">{t.artifacts.tabs.tasks}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="brief">
             <MarkdownPreview
               content={artifacts?.appBrief ?? null}
-              emptyText="No app-brief.md yet. Complete the Brief interview to generate it."
+              emptyText={t.artifacts.emptyBrief}
             />
           </TabsContent>
 
           <TabsContent value="proposal">
             <MarkdownPreview
               content={artifacts?.proposal ?? null}
-              emptyText="No proposal.md yet. Run the Propose stage to generate OpenSpec artifacts."
+              emptyText={t.artifacts.emptyProposal}
             />
           </TabsContent>
 
           <TabsContent value="design">
             <MarkdownPreview
               content={artifacts?.design ?? null}
-              emptyText="No design.md yet. Run the Propose stage to generate design decisions."
+              emptyText={t.artifacts.emptyDesign}
             />
           </TabsContent>
 
@@ -158,7 +162,7 @@ export function ArtifactInspector({
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
-                No capability specs yet.
+                {t.artifacts.emptySpecs}
               </div>
             )}
           </TabsContent>
@@ -166,7 +170,7 @@ export function ArtifactInspector({
           <TabsContent value="tasks">
             <MarkdownPreview
               content={artifacts?.tasks ?? null}
-              emptyText="No tasks.md yet."
+              emptyText={t.artifacts.emptyTasks}
             />
           </TabsContent>
         </Tabs>

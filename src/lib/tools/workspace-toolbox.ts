@@ -5,6 +5,12 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
+const ANSI_ESCAPE_PATTERN = /\x1B\[[0-9;?]*[ -/]*[@-~]/g;
+
+export function stripAnsi(text: string): string {
+  return text.replace(ANSI_ESCAPE_PATTERN, "");
+}
+
 export class PathConfinementError extends Error {
   constructor(message: string) {
     super(message);
@@ -251,15 +257,15 @@ export class WorkspaceToolbox {
         this.onArtifactWritten?.("openspec");
       }
       return {
-        stdout: stdout.trimEnd(),
-        stderr: stderr.trimEnd(),
+        stdout: stripAnsi(stdout).trimEnd(),
+        stderr: stripAnsi(stderr).trimEnd(),
         exitCode: 0,
       };
     } catch (error: unknown) {
       const err = error as { stdout?: string; stderr?: string; code?: number; message?: string };
       return {
-        stdout: (err.stdout ?? "").trimEnd(),
-        stderr: (err.stderr ?? err.message ?? "Command execution failed").trimEnd(),
+        stdout: stripAnsi(err.stdout ?? "").trimEnd(),
+        stderr: stripAnsi(err.stderr ?? err.message ?? "Command execution failed").trimEnd(),
         exitCode: typeof err.code === "number" ? err.code : 1,
       };
     }

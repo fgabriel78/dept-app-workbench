@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseEnv } from "../env";
+import { DEFAULT_TEMPLATE_REPO_URL, parseEnv, parseWorkspaceEnv } from "../env";
 
 describe("parseEnv", () => {
   it("parses valid openai configuration with default model", () => {
@@ -62,5 +62,22 @@ describe("parseEnv", () => {
         OPENAI_API_KEY: "sk-test",
       }),
     ).toThrow();
+  });
+});
+
+describe("parseWorkspaceEnv", () => {
+  it("uses default template URL and parent directory when unset", () => {
+    const result = parseWorkspaceEnv({});
+    expect(result.templateRepoUrl).toBe(DEFAULT_TEMPLATE_REPO_URL);
+    expect(result.projectsRootDir).toBeTruthy();
+  });
+
+  it("uses custom TEMPLATE_REPO_URL and PROJECTS_ROOT_DIR when provided", () => {
+    const result = parseWorkspaceEnv({
+      TEMPLATE_REPO_URL: "https://example.com/custom-template.git",
+      PROJECTS_ROOT_DIR: "/tmp/my-projects",
+    });
+    expect(result.templateRepoUrl).toBe("https://example.com/custom-template.git");
+    expect(result.projectsRootDir).toContain("my-projects");
   });
 });

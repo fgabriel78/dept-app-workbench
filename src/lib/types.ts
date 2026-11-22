@@ -1,5 +1,16 @@
-export const STAGES = ["brief", "explore", "propose", "apply", "archive"] as const;
+export const STAGES = ["brief", "explore", "propose", "apply", "test", "archive"] as const;
 export type StageId = (typeof STAGES)[number];
+
+export type PreviewStatusState = "idle" | "starting" | "running" | "error";
+
+export type PreviewStatus = {
+  status: PreviewStatusState;
+  projectRoot: string | null;
+  port: number | null;
+  url: string | null;
+  logs: string[];
+  error: string | null;
+};
 
 export type StageStatus = "completed" | "active" | "available" | "upcoming";
 

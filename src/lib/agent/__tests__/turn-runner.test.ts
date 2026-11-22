@@ -44,7 +44,7 @@ describe("createAgentTurnStream SSE integration", () => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
-  it("streams tool_activity, artifact_updated, diagram, question_group, text_delta, and done events", async () => {
+  it("streams tool_activity, artifact_updated, diagram, question_group, text_delta, and stops turn after ask_questions", async () => {
     let callIndex = 0;
 
     const mockModel = new MockLanguageModelV1({
@@ -74,6 +74,8 @@ describe("createAgentTurnStream SSE integration", () => {
                     mermaid: "flowchart LR\n  A[Start] --> B[End]",
                   }),
                 },
+                { type: "text-delta", textDelta: "I drafted the brief " },
+                { type: "text-delta", textDelta: "and added a question card." },
                 {
                   type: "tool-call",
                   toolCallType: "function",
@@ -104,8 +106,7 @@ describe("createAgentTurnStream SSE integration", () => {
         return {
           stream: simulateReadableStream({
             chunks: [
-              { type: "text-delta", textDelta: "I drafted the brief " },
-              { type: "text-delta", textDelta: "and added a question card." },
+              { type: "text-delta", textDelta: "Unexpected post-question text." },
               {
                 type: "finish",
                 finishReason: "stop",
@@ -128,6 +129,7 @@ describe("createAgentTurnStream SSE integration", () => {
     const events = await collectSseEvents(stream);
     const types = events.map((e) => e.type);
 
+    expect(callIndex).toBe(1);
     expect(types).toContain("tool_activity");
     expect(types).toContain("artifact_updated");
     expect(types).toContain("diagram");
@@ -142,5 +144,47 @@ describe("createAgentTurnStream SSE integration", () => {
     expect(text).toBe("I drafted the brief and added a question card.");
 
     expect(fs.readFileSync(path.join(tempRoot, "app-brief.md"), "utf8")).toContain("Draft content");
+  });
+
+  it("emits a localized step-limit notice when maxSteps ends on tool-calls without closing text", async () => {
+    const mockModel = new MockLanguageModelV1({
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunks: [
+            {
+              type: "tool-call",
+              toolCallType: "function",
+              toolCallId: "tc-only",
+              toolName: "list_dir",
+              args: JSON.stringify({ path: "." }),
+            },
+            {
+              type: "finish",
+              finishReason: "tool-calls",
+              usage: { promptTokens: 10, completionTokens: 10 },
+            },
+          ],
+        }),
+        rawCall: { rawPrompt: null, rawSettings: {} },
+      }),
+    });
+
+    const stream = createAgentTurnStream({
+      projectRoot: tempRoot,
+      stage: "propose",
+      locale: "es",
+      maxSteps: 1,
+      messages: [{ role: "user", content: "Propose change" }],
+      model: mockModel,
+    });
+
+    const events = await collectSseEvents(stream);
+    const text = events
+      .filter((e): e is Extract<AgentSseEvent, { type: "text_delta" }> => e.type === "text_delta")
+      .map((e) => e.delta)
+      .join("");
+
+    expect(text).toContain("breve pausa");
+    expect(events[events.length - 1]?.type).toBe("done");
   });
 });

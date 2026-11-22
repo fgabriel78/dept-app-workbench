@@ -1,6 +1,7 @@
 import { tool, type Tool } from "ai";
 import { z } from "zod";
-import type { DiagramPayload, QuestionGroupPayload, StageId, ToolActivityEvent } from "@/lib/types";
+import { getDictionary, type Locale } from "@/lib/i18n";
+import type { DiagramPayload, StageId, ToolActivityEvent } from "@/lib/types";
 import { WorkspaceToolbox } from "./workspace-toolbox";
 
 export type StageToolName =
@@ -17,6 +18,7 @@ export const STAGE_ALLOWED_TOOLS: Record<StageId, readonly StageToolName[]> = {
   explore: ["read_file", "list_dir", "run_command", "ask_questions", "render_diagram"],
   propose: ["read_file", "list_dir", "write_file", "run_command", "ask_questions", "render_diagram"],
   apply: ["read_file", "list_dir", "write_file", "edit_file", "run_command", "ask_questions", "render_diagram"],
+  test: ["read_file", "list_dir", "write_file", "edit_file", "run_command", "ask_questions", "render_diagram"],
   archive: ["read_file", "list_dir", "run_command", "ask_questions"],
 };
 
@@ -25,7 +27,7 @@ const SHELL_CHAIN_PATTERN = /[;&|><`$\n\r]/;
 export function getStageCommandFilter(
   stage: StageId,
 ): (command: string) => { allowed: boolean; reason?: string } {
-  if (stage === "apply") {
+  if (stage === "apply" || stage === "test") {
     return () => ({ allowed: true });
   }
 
@@ -46,31 +48,31 @@ export function getStageCommandFilter(
     }
 
     if (stage === "explore") {
-      const allowedReadOnly = /^openspec\s+(list|status|show|view|validate|instructions)\b/i;
+      const allowedReadOnly = /^openspec\s+(list|status|show|view|validate|instructions|context)\b/i;
       if (!allowedReadOnly.test(trimmed)) {
         return {
           allowed: false,
           reason:
-            "Explore stage is read-only: only read-only `openspec` commands (list, status, show, view, validate, instructions) are allowed.",
+            "Explore stage is read-only: only read-only `openspec` commands (list, status, show, view, validate, instructions, context) are allowed.",
         };
       }
       return { allowed: true };
     }
 
     if (stage === "propose") {
-      const allowedPropose = /^openspec\s+(new\s+change|list|status|show|view|validate|instructions)\b/i;
+      const allowedPropose = /^openspec\s+(new\s+change|list|status|show|view|validate|instructions|context)\b/i;
       if (!allowedPropose.test(trimmed)) {
         return {
           allowed: false,
           reason:
-            "Propose stage only permits `openspec` planning commands (new change, status, instructions, list, show, validate).",
+            "Propose stage only permits `openspec` planning commands (new change, status, instructions, list, show, validate, context).",
         };
       }
       return { allowed: true };
     }
 
     if (stage === "archive") {
-      const allowedArchive = /^openspec\s+(archive|list|status|show|view|validate)\b/i;
+      const allowedArchive = /^openspec\s+(archive|list|status|show|view|validate|instructions|context)\b/i;
       if (!allowedArchive.test(trimmed)) {
         return {
           allowed: false,
@@ -119,8 +121,8 @@ export function getStageWritePathFilter(
 export type BuildStageToolsOptions = {
   projectRoot: string;
   stage: StageId;
+  locale?: Locale;
   onActivity?: (activity: ToolActivityEvent) => void;
-  onQuestionGroup?: (payload: QuestionGroupPayload) => void;
   onDiagram?: (payload: DiagramPayload) => void;
   onArtifactWritten?: (relativePath: string) => void;
 };
@@ -132,7 +134,15 @@ function nextId(prefix: string): string {
 }
 
 export function buildStageTools(options: BuildStageToolsOptions): Record<string, Tool> {
-  const { projectRoot, stage, onActivity, onQuestionGroup, onDiagram, onArtifactWritten } = options;
+  const {
+    projectRoot,
+    stage,
+    locale = "en",
+    onActivity,
+    onDiagram,
+    onArtifactWritten,
+  } = options;
+  const { tools: toolCopy } = getDictionary(locale);
   const allowed = new Set<StageToolName>(STAGE_ALLOWED_TOOLS[stage]);
 
   const toolbox = new WorkspaceToolbox({
@@ -155,7 +165,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
         onActivity?.({
           id,
           toolName: "read_file",
-          label: `Reading ${filePath}`,
+          label: toolCopy.reading(filePath),
           status: "running",
         });
         try {
@@ -163,7 +173,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
           onActivity?.({
             id,
             toolName: "read_file",
-            label: `Read ${result.path}`,
+            label: toolCopy.read(result.path),
             status: "done",
           });
           return result;
@@ -172,7 +182,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
           onActivity?.({
             id,
             toolName: "read_file",
-            label: `Failed to read ${filePath}`,
+            label: toolCopy.failedRead(filePath),
             status: "error",
             detail: message,
           });
@@ -190,11 +200,11 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
       }),
       execute: async ({ path: dirPath }) => {
         const id = nextId("act");
-        const labelTarget = dirPath && dirPath !== "." ? dirPath : "workspace root";
+        const labelTarget = dirPath && dirPath !== "." ? dirPath : toolCopy.workspaceRoot;
         onActivity?.({
           id,
           toolName: "list_dir",
-          label: `Inspecting ${labelTarget}`,
+          label: toolCopy.inspecting(labelTarget),
           status: "running",
         });
         try {
@@ -202,7 +212,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
           onActivity?.({
             id,
             toolName: "list_dir",
-            label: `Listed ${labelTarget} (${result.entries.length} items)`,
+            label: toolCopy.listed(labelTarget, result.entries.length),
             status: "done",
           });
           return result;
@@ -211,7 +221,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
           onActivity?.({
             id,
             toolName: "list_dir",
-            label: `Failed to list ${labelTarget}`,
+            label: toolCopy.failedList(labelTarget),
             status: "error",
             detail: message,
           });
@@ -233,7 +243,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
         onActivity?.({
           id,
           toolName: "write_file",
-          label: `Writing ${filePath}`,
+          label: toolCopy.writing(filePath),
           status: "running",
         });
         try {
@@ -241,7 +251,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
           onActivity?.({
             id,
             toolName: "write_file",
-            label: `Updated ${result.path}`,
+            label: toolCopy.updated(result.path),
             status: "done",
           });
           return result;
@@ -250,7 +260,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
           onActivity?.({
             id,
             toolName: "write_file",
-            label: `Could not write ${filePath}`,
+            label: toolCopy.failedWrite(filePath),
             status: "error",
             detail: message,
           });
@@ -273,7 +283,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
         onActivity?.({
           id,
           toolName: "edit_file",
-          label: `Editing ${filePath}`,
+          label: toolCopy.editing(filePath),
           status: "running",
         });
         try {
@@ -281,7 +291,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
           onActivity?.({
             id,
             toolName: "edit_file",
-            label: `Edited ${result.path}`,
+            label: toolCopy.edited(result.path),
             status: "done",
           });
           return result;
@@ -290,7 +300,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
           onActivity?.({
             id,
             toolName: "edit_file",
-            label: `Could not edit ${filePath}`,
+            label: toolCopy.failedEdit(filePath),
             status: "error",
             detail: message,
           });
@@ -308,10 +318,11 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
       }),
       execute: async ({ command }) => {
         const id = nextId("act");
+        const shortCmd = command.split(" ").slice(0, 2).join(" ");
         onActivity?.({
           id,
           toolName: "run_command",
-          label: `Running ${command.split(" ").slice(0, 2).join(" ")}`,
+          label: toolCopy.running(shortCmd),
           status: "running",
           detail: command,
         });
@@ -322,8 +333,8 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
             toolName: "run_command",
             label:
               result.exitCode === 0
-                ? `Completed ${command.split(" ").slice(0, 2).join(" ")}`
-                : `Command exited with code ${result.exitCode}`,
+                ? toolCopy.completedCommand(shortCmd)
+                : toolCopy.exitedCommand(result.exitCode),
             status: result.exitCode === 0 ? "done" : "error",
             detail: [result.stdout, result.stderr].filter(Boolean).join("\n").slice(0, 2000),
           });
@@ -333,7 +344,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
           onActivity?.({
             id,
             toolName: "run_command",
-            label: "Command blocked",
+            label: toolCopy.commandBlocked,
             status: "error",
             detail: message,
           });
@@ -346,7 +357,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
   if (allowed.has("ask_questions")) {
     tools.ask_questions = tool({
       description:
-        "Present one or more structured questions to the user as an interactive Question Group Card and pause for their response.",
+        "Present one or more structured questions to the user as an interactive Question Group Card and pause the turn for their response.",
       parameters: z.object({
         title: z.string().optional().describe("Short heading for the question card."),
         description: z.string().optional().describe("Optional brief context sentence."),
@@ -363,19 +374,6 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
           )
           .min(1),
       }),
-      execute: async (input) => {
-        const payload: QuestionGroupPayload = {
-          id: nextId("qgroup"),
-          title: input.title,
-          description: input.description,
-          questions: input.questions,
-        };
-        onQuestionGroup?.(payload);
-        return {
-          status: "awaiting_user_response",
-          questionCount: input.questions.length,
-        };
-      },
     });
   }
 
@@ -393,7 +391,7 @@ export function buildStageTools(options: BuildStageToolsOptions): Record<string,
           mermaid: input.mermaid,
         };
         onDiagram?.(payload);
-        return { status: "rendered", title: input.title ?? "Diagram" };
+        return { status: "rendered", title: input.title ?? toolCopy.defaultDiagramTitle };
       },
     });
   }
